@@ -1,79 +1,70 @@
-var DEFAULT = 0
-var RECYCLED_NODE = 1
-var TEXT_NODE = 2
+const DEFAULT = 0
+const RECYCLED_NODE = 1
+const TEXT_NODE = 2
 
-var XLINK_NS = "http://www.w3.org/1999/xlink"
-var SVG_NS = "http://www.w3.org/2000/svg"
+const XLINK_NS = "http://www.w3.org/1999/xlink"
+const SVG_NS = "http://www.w3.org/2000/svg"
 
-var EMPTY_OBJECT = {}
-var EMPTY_ARRAY = []
+const EMPTY_OBJECT = {}
+const EMPTY_ARRAY = []
 
-var map = EMPTY_ARRAY.map
-var isArray = Array.isArray
+const map = EMPTY_ARRAY.map
+const isArray = Array.isArray
 
-var merge = function(a, b) {
-  var target = {}
+const flatten = arr => arr.reduce((a, b) => a.concat(b), [])
 
-  for (var i in a) target[i] = a[i]
-  for (var i in b) target[i] = b[i]
+const eventProxy = event => event.currentTarget.events[event.type](event)
 
-  return target
-}
-
-var eventProxy = function(event) {
-  return event.currentTarget.events[event.type](event)
-}
-
-var updateProperty = function(element, name, lastValue, nextValue, isSvg) {
+const updateProp = (el, name, lastValue, nextValue, isSvg) => {
   if (name === "key") {
   } else if (name === "style") {
-    for (var i in merge(lastValue, nextValue)) {
+    for (var i in Object.assign({}, lastValue, nextValue)) {
       var style = nextValue == null || nextValue[i] == null ? "" : nextValue[i]
       if (i[0] === "-") {
-        element[name].setProperty(i, style)
+        el[name].setProperty(i, style)
       } else {
-        element[name][i] = style
+        el[name][i] = style
       }
     }
   } else {
     if (name[0] === "o" && name[1] === "n") {
-      if (!element.events) element.events = {}
+      if (!el.events) el.events = {}
 
-      element.events[(name = name.slice(2))] = nextValue
+      el.events[(name = name.slice(2))] = nextValue
 
       if (nextValue == null) {
-        element.removeEventListener(name, eventProxy)
+        el.removeEventListener(name, eventProxy)
       } else if (lastValue == null) {
-        element.addEventListener(name, eventProxy)
+        el.addEventListener(name, eventProxy)
       }
     } else {
       var nullOrFalse = nextValue == null || nextValue === false
 
       if (
-        name in element &&
+        name in el &&
         name !== "list" &&
         name !== "draggable" &&
         name !== "spellcheck" &&
         name !== "translate" &&
         !isSvg
       ) {
-        element[name] = nextValue == null ? "" : nextValue
+        el[name] = nextValue == null ? "" : nextValue
         if (nullOrFalse) {
-          element.removeAttribute(name)
+          el.removeAttribute(name)
         }
       } else {
         var ns = isSvg && name !== (name = name.replace(/^xlink:?/, ""))
         if (ns) {
           if (nullOrFalse) {
-            element.removeAttributeNS(XLINK_NS, name)
+            el.removeAttributeNS(XLINK_NS, name)
           } else {
-            element.setAttributeNS(XLINK_NS, name, nextValue)
+            el.setAttributeNS(XLINK_NS, name, nextValue)
           }
         } else {
           if (nullOrFalse) {
-            element.removeAttribute(name)
+            el.removeAttribute(name)
           } else {
-            element.setAttribute(name, nextValue)
+            el.setAttribute(name, nextValue)
           }
         }
       }
@@ -81,69 +72,65 @@ var updateProperty = function(element, name, lastValue, nextValue, isSvg) {
   }
 }
 
-var createElement = function(node, lifecycle, isSvg) {
-  var element =
+const createElement = (node, lifecycle, isSvg) => {
+  const el =
     node.type === TEXT_NODE
       ? document.createTextNode(node.name)
       : (isSvg = isSvg || node.name === "svg")
         ? document.createElementNS(SVG_NS, node.name)
         : document.createElement(node.name)
 
-  var props = node.props
+  const props = node.props
   if (props.oncreate) {
-    lifecycle.push(function() {
-      props.oncreate(element)
-    })
+    lifecycle.push(() => props.oncreate(el))
   }
 
-  for (var i = 0, length = node.children.length; i < length; i++) {
-    element.appendChild(createElement(node.children[i], lifecycle, isSvg))
-  }
+  [...node.children].forEach(child => el.appendChild(createElement(child, lifecycle, isSvg)))
 
   for (var name in props) {
-    updateProperty(element, name, null, props[name], isSvg)
+    updateProp(el, name, null, props[name], isSvg)
   }
 
-  return (node.element = element)
+  return (node.el = el)
 }
 
-var updateElement = function(
-  element,
+const updateElement = (
+  el,
   lastProps,
   nextProps,
   lifecycle,
   isSvg,
   isRecycled
-) {
-  for (var name in merge(lastProps, nextProps)) {
+) => {
+  for (var name in Object.assign({}, lastProps, nextProps)) {
     if (
       (name === "value" || name === "checked"
-        ? element[name]
+        ? el[name]
         : lastProps[name]) !== nextProps[name]
     ) {
-      updateProperty(element, name, lastProps[name], nextProps[name], isSvg)
+      updateProp(el, name, lastProps[name], nextProps[name], isSvg)
     }
   }
 
   var cb = isRecycled ? nextProps.oncreate : nextProps.onupdate
   if (cb != null) {
     lifecycle.push(function() {
-      cb(element, lastProps)
+      cb(el, lastProps)
     })
   }
 }
 
-var removeChildren = function(node) {
+const removeChildren = node => {
   for (var i = 0, length = node.children.length; i < length; i++) {
     removeChildren(node.children[i])
   }
 
   var cb = node.props.ondestroy
   if (cb != null) {
-    cb(node.element)
+    cb(node.el)
   }
 
-  return node.element
+  return node.el
 }
 
 var removeElement = function(parent, node) {
@@ -153,17 +140,15 @@ var removeElement = function(parent, node) {
 
   var cb = node.props && node.props.onremove
   if (cb != null) {
-    cb(node.element, remove)
+    cb(node.el, remove)
   } else {
     remove()
   }
 }
 
-var getKey = function(node) {
-  return node == null ? null : node.key
-}
+const getKey = node => node == null ? null : node.key
 
-var createKeyMap = function(children, start, end) {
+const createKeyMap = (children, start, end) => {
   var out = {}
   var key
   var node
@@ -177,14 +162,14 @@ var createKeyMap = function(children, start, end) {
   return out
 }
 
-var patchElement = function(
+const patchElement = (
   parent,
-  element,
+  el,
   lastNode,
   nextNode,
   lifecycle,
   isSvg
-) {
+) => {
   if (nextNode === lastNode) {
   } else if (
     lastNode != null &&
@@ -192,20 +177,20 @@ var patchElement = function(
     nextNode.type === TEXT_NODE
   ) {
     if (lastNode.name !== nextNode.name) {
-      element.nodeValue = nextNode.name
+      el.nodeValue = nextNode.name
     }
   } else if (lastNode == null || lastNode.name !== nextNode.name) {
     var newElement = parent.insertBefore(
       createElement(nextNode, lifecycle, isSvg),
-      element
+      el
     )
 
     if (lastNode != null) removeElement(parent, lastNode)
 
-    element = newElement
+    el = newElement
   } else {
     updateElement(
-      element,
+      el,
       lastNode.props,
       nextNode.props,
       lifecycle,
@@ -233,8 +218,8 @@ var patchElement = function(
       if (lastKey == null || lastKey !== nextKey) break
 
       patchElement(
-        element,
-        lastChildren[lastChStart].element,
+        el,
+        lastChildren[lastChStart].el,
         lastChildren[lastChStart],
         nextChildren[nextChStart],
         lifecycle,
@@ -252,8 +237,8 @@ var patchElement = function(
       if (lastKey == null || lastKey !== nextKey) break
 
       patchElement(
-        element,
-        lastChildren[lastChEnd].element,
+        el,
+        lastChildren[lastChEnd].el,
         lastChildren[lastChEnd],
         nextChildren[nextChEnd],
         lifecycle,
@@ -266,14 +251,14 @@ var patchElement = function(
 
     if (lastChStart > lastChEnd) {
       while (nextChStart <= nextChEnd) {
-        element.insertBefore(
+        el.insertBefore(
           createElement(nextChildren[nextChStart++], lifecycle, isSvg),
-          (childNode = lastChildren[lastChStart]) && childNode.element
+          (childNode = lastChildren[lastChStart]) && childNode.el
         )
       }
     } else if (nextChStart > nextChEnd) {
       while (lastChStart <= lastChEnd) {
-        removeElement(element, lastChildren[lastChStart++])
+        removeElement(el, lastChildren[lastChStart++])
       }
     } else {
       var lastKeyed = createKeyMap(lastChildren, lastChStart, lastChEnd)
@@ -288,7 +273,7 @@ var patchElement = function(
           (nextKey != null && nextKey === getKey(lastChildren[lastChStart + 1]))
         ) {
           if (lastKey == null) {
-            removeElement(element, childNode)
+            removeElement(el, childNode)
           }
           lastChStart++
           continue
@@ -297,8 +282,8 @@ var patchElement = function(
         if (nextKey == null || lastNode.type === RECYCLED_NODE) {
           if (lastKey == null) {
             patchElement(
-              element,
-              childNode && childNode.element,
+              el,
+              childNode && childNode.el,
               childNode,
               nextChildren[nextChStart],
               lifecycle,
@@ -310,8 +295,8 @@ var patchElement = function(
         } else {
           if (lastKey === nextKey) {
             patchElement(
-              element,
-              childNode.element,
+              el,
+              childNode.el,
               childNode,
               nextChildren[nextChStart],
               lifecycle,
@@ -322,10 +307,10 @@ var patchElement = function(
           } else {
             if ((savedNode = lastKeyed[nextKey]) != null) {
               patchElement(
-                element,
-                element.insertBefore(
-                  savedNode.element,
-                  childNode && childNode.element
+                el,
+                el.insertBefore(
+                  savedNode.el,
+                  childNode && childNode.el
                 ),
                 savedNode,
                 nextChildren[nextChStart],
@@ -335,8 +320,8 @@ var patchElement = function(
               nextKeyed[nextKey] = true
             } else {
               patchElement(
-                element,
-                childNode && childNode.element,
+                el,
+                childNode && childNode.el,
                 null,
                 nextChildren[nextChStart],
                 lifecycle,
@@ -350,58 +335,50 @@ var patchElement = function(
 
       while (lastChStart <= lastChEnd) {
         if (getKey((childNode = lastChildren[lastChStart++])) == null) {
-          removeElement(element, childNode)
+          removeElement(el, childNode)
         }
       }
 
       for (var key in lastKeyed) {
         if (nextKeyed[key] == null) {
-          removeElement(element, lastKeyed[key])
+          removeElement(el, lastKeyed[key])
         }
       }
     }
   }
 
-  return (nextNode.element = element)
+  return (nextNode.el = el)
 }
 
-var createVNode = function(name, props, children, element, key, type) {
-  return {
-    name: name,
-    props: props,
-    children: children,
-    element: element,
-    key: key,
-    type: type
-  }
-}
+const createVNode = (name, props, children, el, key, type) => ({
+  name: name,
+  props: props,
+  children: children,
+  el: el,
+  key: key,
+  type: type
+})
 
-var createTextVNode = function(text, element) {
-  return createVNode(text, EMPTY_OBJECT, EMPTY_ARRAY, element, null, TEXT_NODE)
-}
+const createTextVNode = (text, el) => createVNode(text, EMPTY_OBJECT, EMPTY_ARRAY, el, null, TEXT_NODE)
 
-var recycleChild = function(element) {
-  return element.nodeType === 3 // Node.TEXT_NODE
-    ? createTextVNode(element.nodeValue, element)
-    : recycleElement(element)
-}
+const recycleChild = el => el.nodeType === 3
+  ? createTextVNode(el.nodeValue, el)
+  : recycleElement(el)
 
-var recycleElement = function(element) {
-  return createVNode(
-    element.nodeName.toLowerCase(),
-    EMPTY_OBJECT,
-    map.call(element.childNodes, recycleChild),
-    element,
-    null,
-    RECYCLED_NODE
-  )
-}
+const recycleElement = el => createVNode(
+  el.nodeName.toLowerCase(),
+  EMPTY_OBJECT,
+  map.call(el.childNodes, recycleChild),
+  el,
+  null,
+  RECYCLED_NODE
+)
 
-export var recycle = function(container) {
+export const recycle = function(container) {
   return recycleElement(container.children[0])
 }
 
-export var patch = function(lastNode, nextNode, container) {
+export const patch = function(lastNode, nextNode, container) {
   var lifecycle = []
 
   patchElement(container, container.children[0], lastNode, nextNode, lifecycle)
@@ -411,7 +388,7 @@ export var patch = function(lastNode, nextNode, container) {
   return nextNode
 }
 
-export var h = function(name, props) {
+export const h = function(name, props) {
   var node
   var rest = []
   var children = []
