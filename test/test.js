@@ -261,15 +261,15 @@ test("onremove", done => {
   const view = state =>
     state
       ? h("ul", {}, [
-          h("li"),
-          h("li", {
-            onremove(_, remove) {
-              remove()
-              expect(document.body.innerHTML).toBe("<ul><li></li></ul>")
-              done()
-            }
-          })
-        ])
+        h("li"),
+        h("li", {
+          onremove(_, remove) {
+            remove()
+            expect(document.body.innerHTML).toBe("<ul><li></li></ul>")
+            done()
+          }
+        })
+      ])
       : h("ul", {}, [h("li")])
 
   let node = patch(null, view(true), document.body)
@@ -280,21 +280,21 @@ test("ondestroy", done => {
   const view = state =>
     state
       ? ul([
-          li(),
-          li([
-            div({
-              ondestroy() {
-                expect(document.body.innerHTML).toBe(
-                  "<ul><li></li><li><div></div></li></ul>"
-                )
-                setTimeout(() => {
-                  expect(document.body.innerHTML).toBe("<ul><li></li></ul>")
-                  done()
-                })
-              }
-            })
-          ])
+        li(),
+        li([
+          div({
+            ondestroy() {
+              expect(document.body.innerHTML).toBe(
+                "<ul><li></li><li><div></div></li></ul>"
+              )
+              setTimeout(() => {
+                expect(document.body.innerHTML).toBe("<ul><li></li></ul>")
+                done()
+              })
+            }
+          })
         ])
+      ])
       : ul([li()])
 
   let node = patch(null, view(true), document.body)
@@ -307,19 +307,19 @@ test("onremove/ondestroy", done => {
   const view = state =>
     state
       ? ul([
-          li(),
-          li({
-            ondestroy() {
-              destroyed = true
-            },
-            onremove(_, remove) {
-              expect(destroyed).toBe(false)
-              remove()
-              expect(destroyed).toBe(true)
-              done()
-            }
-          })
-        ])
+        li(),
+        li({
+          ondestroy() {
+            destroyed = true
+          },
+          onremove(_, remove) {
+            expect(destroyed).toBe(false)
+            remove()
+            expect(destroyed).toBe(true)
+            done()
+          }
+        })
+      ])
       : ul([li()])
 
   let node = patch(node, view(true), document.body)
@@ -388,4 +388,26 @@ test("name as a function (JSX component syntax)", () => {
   expect(h(Title, { key: "key", children: "foo" }, "bar")).toEqual(
     h("div", { key: "key" }, ["bar"])
   )
+})
+
+test("setState", () => {
+  const Node = (props, state, setState) => {
+    const {
+      foo = "foo"
+    } = state
+
+    return h("div", {
+      oncreate: el => {
+        expect(el.textContent).toBe("foo")
+
+        setState({
+          foo: "bar"
+        }).then(() => {
+          expect(el.textContent).toEqual("bar")
+        })
+      }
+    }, [foo])
+  }
+
+  patch(null, h(Node), document.body)
 })

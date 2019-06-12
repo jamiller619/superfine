@@ -2,8 +2,7 @@
   "name": "superfine",
   "description": "Minimal view layer for creating declarative web user interfaces.",
   "version": "6.0.1",
-  "main": "dist/superfine.js",
-  "module": "src/index.js",
+  "main": "src/index.js",
   "license": "MIT",
   "repository": "jorgebucaran/superfine",
   "types": "superfine.d.ts",
@@ -27,13 +26,14 @@
     "prepare": "npm run build",
     "release": "npm run build && npm test && git commit -am $npm_package_version && git tag $npm_package_version && git push && git push --tags && npm publish"
   },
-  "babel": {
-    "presets": "env"
-  },
   "devDependencies": {
     "jest": "^23.6.0",
     "rollup": "^0.62.0",
-    "terser": "^3.13.1",
-    "babel-preset-env": "^1.7.0"
+    "terser": "^3.13.1"
+  },
+  "dependencies": {
+    "@babel/core": "^7.4.5",
+    "@babel/preset-env": "^7.4.5",
+    "prettier": "^1.18.2"
   }
 }
